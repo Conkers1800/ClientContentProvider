@@ -4,8 +4,10 @@
 
 
     <queries>
-        <provider android:authorities="com.example.inventory.provider" />
+        <provider android:authorities="com.example.marsphotos.provider" />
     </queries>
+
+    <uses-permission android:name="com.example.marsphotos.READ_DATA" />
 
     <application
         android:allowBackup="true"
