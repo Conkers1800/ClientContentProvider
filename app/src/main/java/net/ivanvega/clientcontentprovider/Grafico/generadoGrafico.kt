@@ -1,15 +1,17 @@
 package net.ivanvega.clientcontentprovider.Grafico
 
-import androidx.compose.foundation.Canvas
+import android.app.DatePickerDialog
+import android.util.Log
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,73 +22,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import net.ivanvega.clientcontentprovider.viewModel.rateViewModel
-
-@Composable
-fun grafico(ratesBase: List<Pair<Long, Double>>, ratesTarget: List<Pair<Long, Double>>) {
-
-    if (ratesBase.isEmpty() || ratesTarget.isEmpty()) return
-
-    val minRate = (ratesBase + ratesTarget).minOf { it.second }
-    val maxRate = (ratesBase + ratesTarget).maxOf { it.second }
-
-    val normalizedBaseRates = ratesBase.map { (timestamp, rate) ->
-        (rate - minRate) / (maxRate - minRate)
-    }
-
-    val normalizedTargetRates = ratesTarget.map { (timestamp, rate) ->
-        (rate - minRate) / (maxRate - minRate)
-    }
-
-    Canvas(modifier = Modifier.fillMaxSize()) {
-        val pathBase = Path()
-        val pathTarget = Path()
-        val chartWidth = size.width
-        val chartHeight = size.height
-
-        // Dibujar la línea para la divisa base
-        normalizedBaseRates.forEachIndexed { index, normalizedRate ->
-            val x = chartWidth * index / (normalizedBaseRates.size - 1)
-            val y = chartHeight * (1 - normalizedRate).toFloat()
-
-            if (index == 0) {
-                pathBase.moveTo(x, y)
-            } else {
-                pathBase.lineTo(x, y)
-            }
-        }
-
-        // Dibujar la línea para la divisa objetivo
-        normalizedTargetRates.forEachIndexed { index, normalizedRate ->
-            val x = chartWidth * index / (normalizedTargetRates.size - 1)
-            val y = chartHeight * (1 - normalizedRate).toFloat()
-
-            if (index == 0) {
-                pathTarget.moveTo(x, y)
-            } else {
-                pathTarget.lineTo(x, y)
-            }
-        }
-
-        // Dibujar ambas líneas
-        drawPath(
-            path = pathBase,
-            color = Color.Blue,
-            style = Stroke(width = 4f)
-        )
-
-        drawPath(
-            path = pathTarget,
-            color = Color.Red,
-            style = Stroke(width = 4f)
-        )
-    }
-}
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun DropdownCurrencySelector(
@@ -122,76 +65,114 @@ fun DropdownCurrencySelector(
     }
 }
 
-
 @Composable
-fun RateComparisonScreen(viewModel: rateViewModel) {
+fun RateComparadorScreen(viewModel: rateViewModel) {
     val scope = rememberCoroutineScope()
     var currencies by remember { mutableStateOf(emptyList<String>()) }
     var selectedBase by remember { mutableStateOf("") }
     var selectedTarget by remember { mutableStateOf("") }
     var rates by remember { mutableStateOf(emptyList<Pair<Long, Double>>()) }
     var showResults by remember { mutableStateOf(false) }
+    var startDate by remember { mutableStateOf<Long?>(null) }
+    var endDate by remember { mutableStateOf<Long?>(null) }
 
-    // Carga inicial de las divisas
     LaunchedEffect(Unit) {
         currencies = viewModel.getCurrencies()
         if (currencies.isNotEmpty()) {
-            selectedBase = currencies[0] // Divisa base inicial
-            selectedTarget = currencies.getOrElse(1) { currencies[0] } // Divisa objetivo inicial
+            selectedBase = currencies[0]
+            selectedTarget = currencies.getOrElse(1) { currencies[0] }
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        // Dropdown para la divisa base
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        // Controles en la parte superior
         DropdownCurrencySelector(
             label = "Divisa Base",
             selectedCurrency = selectedBase,
             onCurrencySelected = { newBase ->
                 selectedBase = newBase
-                showResults = false // Oculta los resultados hasta obtener nuevos datos
+                showResults = false
             },
             currencies = currencies
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Dropdown para la divisa objetivo
         DropdownCurrencySelector(
             label = "Divisa Objetivo",
             selectedCurrency = selectedTarget,
             onCurrencySelected = { newTarget ->
                 selectedTarget = newTarget
-                showResults = false // Oculta los resultados hasta obtener nuevos datos
+                showResults = false
             },
             currencies = currencies
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Botón para consultar las tasas de cambio
+        DatePicker(label = "Fecha Inicial") { date -> startDate = date }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        DatePicker(label = "Fecha Final") { date -> endDate = date }
+        Spacer(modifier = Modifier.height(8.dp))
+
         Button(
             onClick = {
                 scope.launch {
-                    rates = viewModel.getExchangeRates(selectedBase, selectedTarget)
-                    showResults = true // Muestra los resultados después de consultar
+                    if (startDate != null && endDate != null) {
+                        rates = viewModel.getExchangeRates(
+                            selectedBase,
+                            selectedTarget,
+                            startDate ?: 0L,
+                            endDate ?: 0L
+                        )
+                        showResults = true
+                    }
                 }
             },
-            enabled = selectedBase.isNotEmpty() && selectedTarget.isNotEmpty() // Habilita solo si ambas divisas están seleccionadas
+            enabled = selectedBase.isNotEmpty() && selectedTarget.isNotEmpty() &&
+                    startDate != null && endDate != null
         ) {
             Text("Obtener Tasas")
         }
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Muestra los resultados
+        // Espacio sobrante para la gráfica
         if (showResults && rates.isNotEmpty()) {
-            Text("Tasas de Cambio ($selectedBase -> $selectedTarget):")
-            rates.forEach { (timestamp, rate) ->
-                Text("Fecha: $timestamp - Tasa: $rate")
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                LineChartView(
+                    modifier = Modifier.fillMaxSize(),
+                    dataPoints = rates
+                )
             }
         } else if (showResults) {
-            Text("No hay datos disponibles para esta selección.")
+            Text("No hay datos disponibles o las fechas no son válidas.")
         }
+    }
+}
+
+
+@Composable
+fun DatePicker(label: String, onDateSelected: (Long) -> Unit) {
+    val context = LocalContext.current
+    val calendar = Calendar.getInstance()
+    val year = calendar.get(Calendar.YEAR)
+    val month = calendar.get(Calendar.MONTH)
+    val day = calendar.get(Calendar.DAY_OF_MONTH)
+
+    Button(onClick = {
+        DatePickerDialog(
+            context,
+            { _, selectedYear, selectedMonth, selectedDay ->
+                val selectedDate = Calendar.getInstance().apply {
+                    set(selectedYear, selectedMonth, selectedDay)
+                }.timeInMillis
+                onDateSelected(selectedDate)
+            }, year, month, day
+        ).show()
+    }) {
+        Text(text = label)
     }
 }

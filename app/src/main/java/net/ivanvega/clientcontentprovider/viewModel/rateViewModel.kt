@@ -10,8 +10,6 @@ import kotlinx.coroutines.withContext
 
 class rateViewModel(context: Context) : ViewModel() {
     private val contentResolver: ContentResolver = context.contentResolver
-
-    // Obtiene todas las divisas únicas de baseCode y targetCode
     suspend fun getCurrencies(): List<String> = withContext(Dispatchers.IO) {
         val currencies = mutableSetOf<String>()
 
@@ -40,30 +38,30 @@ class rateViewModel(context: Context) : ViewModel() {
         currencies.toList() // Devuelve todas las divisas en forma de lista
     }
 
-    // Obtiene las tasas de cambio entre dos divisas seleccionadas
-    suspend fun getExchangeRates(baseCode: String, targetCode: String): List<Pair<Long, Double>> =
-        withContext(Dispatchers.IO) {
-            val uri = Uri.parse("content://com.example.marsphotos.provider/exchange_rate")
-                .buildUpon()
-                .appendQueryParameter("baseCode", baseCode)
-                .appendQueryParameter("targetCode", targetCode)
-                .appendQueryParameter(
-                    "startDate",
-                    (System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000)).toString() // Últimos 7 días
-                )
-                .appendQueryParameter("endDate", System.currentTimeMillis().toString())
-                .build()
+    suspend fun getExchangeRates(
+        baseCode: String,
+        targetCode: String,
+        startDate: Long,
+        endDate: Long
+    ): List<Pair<Long, Double>> = withContext(Dispatchers.IO) {
+        val uri = Uri.parse("content://com.example.marsphotos.provider/exchange_rate")
+            .buildUpon()
+            .appendQueryParameter("baseCode", baseCode)
+            .appendQueryParameter("targetCode", targetCode)
+            .appendQueryParameter("startDate", startDate.toString())
+            .appendQueryParameter("endDate", endDate.toString())
+            .build()
 
-            val cursor: Cursor? = contentResolver.query(uri, null, null, null, null)
-            val rates = mutableListOf<Pair<Long, Double>>()
+        val cursor: Cursor? = contentResolver.query(uri, null, null, null, null)
+        val rates = mutableListOf<Pair<Long, Double>>()
 
-            cursor?.use {
-                while (it.moveToNext()) {
-                    val timestamp = it.getLong(it.getColumnIndexOrThrow("timestamp"))
-                    val rate = it.getDouble(it.getColumnIndexOrThrow("rate"))
-                    rates.add(Pair(timestamp, rate))
-                }
+        cursor?.use {
+            while (it.moveToNext()) {
+                val timestamp = it.getLong(it.getColumnIndexOrThrow("timestamp"))
+                val rate = it.getDouble(it.getColumnIndexOrThrow("rate"))
+                rates.add(Pair(timestamp, rate))
             }
-            rates
         }
+        rates
+    }
 }
