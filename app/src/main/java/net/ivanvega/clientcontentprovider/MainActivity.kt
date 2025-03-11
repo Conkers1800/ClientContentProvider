@@ -1,60 +1,31 @@
 package net.ivanvega.clientcontentprovider
 
-import android.net.Uri
 import android.os.Bundle
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import net.ivanvega.clientcontentprovider.Grafico.RateComparisonScreen
+
+import net.ivanvega.clientcontentprovider.Grafico.graficoScreen
 import net.ivanvega.clientcontentprovider.ui.theme.ClientContentProviderTheme
+import net.ivanvega.clientcontentprovider.viewModel.rateViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+
+        // Carga el contenido de la pantalla
         setContent {
-            ClientContentProviderTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+            ClientContentProviderTheme { // Aplica el tema
+                Surface(
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    // Llama a la pantalla del gráfico
+                    RateComparisonScreen(viewModel = rateViewModel(this))
                 }
             }
         }
-        val c = contentResolver.query(
-            Uri.parse(
-            "content://com.example.inventory.provider/inventory"
-        ), null, null,null,null)
-
-        if (c != null) {
-            while (c.moveToNext()){
-                Log.i("ContentProvier Inventory",
-                    " ${c.getInt(0)} - ${c.getString(1)}")
-            }
-        }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    ClientContentProviderTheme {
-        Greeting("Android")
     }
 }

@@ -5,34 +5,65 @@ import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import androidx.lifecycle.ViewModel
-import java.util.Date
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class rateViewModel(context: Context) : ViewModel() {
     private val contentResolver: ContentResolver = context.contentResolver
 
-    fun getRates(
-        baseCode: String,
-        startDate: Long,
-        endDate: Long
-    ): List<Pair<Long, Double>> {
-        val uri = Uri.parse("content://com.example.marsphotos.provider/exchange_rate")
-            .buildUpon()
-            .appendQueryParameter("baseCode", baseCode)
-            .appendQueryParameter("startDate", startDate.toString())
-            .appendQueryParameter("endDate", endDate.toString())
-            .build()
+    // Obtiene todas las divisas únicas de baseCode y targetCode
+    suspend fun getCurrencies(): List<String> = withContext(Dispatchers.IO) {
+        val currencies = mutableSetOf<String>()
 
-        val cursor: Cursor? = contentResolver.query(uri, null, null, null, null)
-        val rates = mutableListOf<Pair<Long, Double>>()
+        // Consulta las divisas base
+        val baseUri = Uri.parse("content://com.example.marsphotos.provider/currencies")
+        val baseCursor: Cursor? = contentResolver.query(baseUri, null, null, null, null)
 
-        cursor?.use {
+        baseCursor?.use {
             while (it.moveToNext()) {
-                val timestamp = it.getLong(it.getColumnIndexOrThrow("timestamp"))
-                val rate = it.getDouble(it.getColumnIndexOrThrow("rate"))
-                rates.add(timestamp to rate)
+                val baseCode = it.getString(it.getColumnIndexOrThrow("baseCode"))
+                currencies.add(baseCode)
             }
         }
 
-        return rates
+        // Consulta las divisas objetivo
+        val targetUri = Uri.parse("content://com.example.marsphotos.provider/target_currencies")
+        val targetCursor: Cursor? = contentResolver.query(targetUri, null, null, null, null)
+
+        targetCursor?.use {
+            while (it.moveToNext()) {
+                val targetCode = it.getString(it.getColumnIndexOrThrow("targetCode"))
+                currencies.add(targetCode)
+            }
+        }
+
+        currencies.toList() // Devuelve todas las divisas en forma de lista
     }
+
+    // Obtiene las tasas de cambio entre dos divisas seleccionadas
+    suspend fun getExchangeRates(baseCode: String, targetCode: String): List<Pair<Long, Double>> =
+        withContext(Dispatchers.IO) {
+            val uri = Uri.parse("content://com.example.marsphotos.provider/exchange_rate")
+                .buildUpon()
+                .appendQueryParameter("baseCode", baseCode)
+                .appendQueryParameter("targetCode", targetCode)
+                .appendQueryParameter(
+                    "startDate",
+                    (System.currentTimeMillis() - (7 * 24 * 60 * 60 * 1000)).toString() // Últimos 7 días
+                )
+                .appendQueryParameter("endDate", System.currentTimeMillis().toString())
+                .build()
+
+            val cursor: Cursor? = contentResolver.query(uri, null, null, null, null)
+            val rates = mutableListOf<Pair<Long, Double>>()
+
+            cursor?.use {
+                while (it.moveToNext()) {
+                    val timestamp = it.getLong(it.getColumnIndexOrThrow("timestamp"))
+                    val rate = it.getDouble(it.getColumnIndexOrThrow("rate"))
+                    rates.add(Pair(timestamp, rate))
+                }
+            }
+            rates
+        }
 }
